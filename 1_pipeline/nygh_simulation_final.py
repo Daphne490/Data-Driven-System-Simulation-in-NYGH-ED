@@ -116,16 +116,20 @@ def get_nis_features(df, system_state):
     unique_patient_type_zones = list(itertools.product(unique_patient_types, unique_zones))
 
     if system_state == 0:
-        return 'N/Ap', ['NIS Upon Arrival']
+        return 'N/Ap', ['NIS Upon Arrival'] + ['Prev NIS Upon Arrival']
     elif system_state == 1:
-        nis_pt_features = ['NIS Upon Arrival Patient_{}'.format(pt) for pt in unique_patient_types]
+        nis_pt_features = ['NIS Upon Arrival Patient_{}'.format(pt) for pt in unique_patient_types] + [
+            'Prev NIS Upon Arrival Patient_{}'.format(pt) for pt in unique_patient_types]
         return unique_patient_types, nis_pt_features
     elif system_state == 2:
-        nis_zone_features = ['NIS Upon Arrival Zone_{}'.format(zone) for zone in unique_zones]
+        nis_zone_features = ['NIS Upon Arrival Zone_{}'.format(zone) for zone in unique_zones] + [
+            'Prev NIS Upon Arrival Zone_{}'.format(zone) for zone in unique_zones]
         return unique_zones, nis_zone_features
     elif system_state == 3:
         nis_pt_zone_features = ['NIS Upon Arrival Patient_{} Zone_{}'.format(pt_zone[0], pt_zone[1]) for pt_zone in
-                                unique_patient_type_zones]
+                                unique_patient_type_zones] + [
+                                   'Prev NIS Upon Arrival Patient_{} Zone_{}'.format(pt_zone[0], pt_zone[1]) for pt_zone
+                                   in unique_patient_type_zones]
         return unique_patient_type_zones, nis_pt_zone_features
 
 
@@ -257,7 +261,7 @@ def build_los_model(df, df_train, df_test, categorical_cols, conts_cols, triage_
 
     print('Building LOS model for {}...'.format(triage_category))
     model_los_RF = RandomForestRegressor(min_samples_leaf=30, max_depth=None, n_estimators=100, random_state=0)
-    model_los_RF.fit(los_x_train, los_y_train)
+    model_los_RF.fit(los_x_train.values, los_y_train)
 
     if feature_importance_flag:
         # Get numerical feature importances
@@ -378,6 +382,7 @@ def simulate_single_scenario(system_state, cutdown, nRuns, initial_event_calenda
         # Initalize current NIS tracker for Run #r:
         if system_state == 0:  # System State 0 (General NIS)
             curr_nis = 0
+            prev_nis = 0
         else:
             curr_nis = ()
             if system_state == 1:  # System State 1: NIS by Patient Type
@@ -389,6 +394,7 @@ def simulate_single_scenario(system_state, cutdown, nRuns, initial_event_calenda
             elif system_state == 3:  # System State 3: NIS by Patient Type x Zone
                 for i in range(len(unique_patient_type_zones)):
                     curr_nis += (0,)
+            prev_nis = curr_nis
         # ---------------------------------------End of: Initialization---------------------------------------
 
         """
@@ -426,10 +432,16 @@ def simulate_single_scenario(system_state, cutdown, nRuns, initial_event_calenda
 
                 # -------------------------------Start of: update NIS counts based on the system state-------------------------------
                 if system_state == 0:  # System State 0: General NIS
+                    df_los_test.at[idx_, 'Prev NIS Upon Arrival'] = prev_nis
                     curr_nis += 1
                     df_los_test.at[idx_, 'NIS Upon Arrival'] = curr_nis
+                    prev_nis = curr_nis
 
                 elif system_state == 1:  # System State 1: NIS by Patient Type
+                    df_los_test.at[idx_, 'Prev NIS Upon Arrival Patient_T123 Admitted'] = prev_nis[0]
+                    df_los_test.at[idx_, 'Prev NIS Upon Arrival Patient_T123 Not Admitted'] = prev_nis[1]
+                    df_los_test.at[idx_, 'Prev NIS Upon Arrival Patient_T45'] = prev_nis[2]
+
                     if triage_categories[id_] == 'T123 Admitted':
                         curr_nis = (curr_nis[0] + 1, curr_nis[1], curr_nis[2])
                     elif triage_categories[id_] == 'T123 Not Admitted':
@@ -439,8 +451,12 @@ def simulate_single_scenario(system_state, cutdown, nRuns, initial_event_calenda
                     df_los_test.at[idx_, 'NIS Upon Arrival Patient_T123 Admitted'] = curr_nis[0]
                     df_los_test.at[idx_, 'NIS Upon Arrival Patient_T123 Not Admitted'] = curr_nis[1]
                     df_los_test.at[idx_, 'NIS Upon Arrival Patient_T45'] = curr_nis[2]
+                    prev_nis = curr_nis
 
                 elif system_state == 2:  # System State 2: NIS by Zone
+                    for i, zone in enumerate(unique_zones):
+                        df_los_test.at[idx_, 'Prev NIS Upon Arrival Zone_{}'.format(zone)] = prev_nis[i]
+
                     row_zones = df_los_test.iloc[idx_][zones]
                     zone_of_sample = ''
                     for c in zones:
@@ -457,9 +473,14 @@ def simulate_single_scenario(system_state, cutdown, nRuns, initial_event_calenda
                         else:
                             temp_nis_by_zone = temp_nis_by_zone + (curr_nis[i],)
                             df_los_test.at[idx_, 'NIS Upon Arrival Zone_{}'.format(zone)] = curr_nis[i]
-                    curr_nis = temp_nis_by_zone
+                    curr_nis, prev_nis = temp_nis_by_zone, temp_nis_by_zone
 
                 elif system_state == 3:  # System State 3: NIS by Patient Type x Zone
+                    for j, pt_zone in enumerate(unique_patient_type_zones):
+                        df_los_test.at[
+                            idx_, 'Prev NIS Upon Arrival Patient_{} Zone_{}'.format(pt_zone[0], pt_zone[1])] = prev_nis[
+                            j]
+
                     row_patients_zones = df_los_test.iloc[idx_][zones]
                     zone_of_sample = ''
                     for c in zones:
@@ -476,7 +497,7 @@ def simulate_single_scenario(system_state, cutdown, nRuns, initial_event_calenda
                         else:
                             temp_nis_by_pt_zone = temp_nis_by_pt_zone + (curr_nis[j],)
                             df_los_test.at[idx_, 'NIS Upon Arrival Patient_{} Zone_{}'.format(pt_zone[0], pt_zone[1])] = curr_nis[j]
-                    curr_nis = temp_nis_by_pt_zone
+                    curr_nis, prev_nis = temp_nis_by_pt_zone, temp_nis_by_pt_zone
                 # -------------------------------End of: update NIS counts based on the system state-------------------------------
 
                 # Sample LOS for the arriving patient, apply intervention to if it is a consult patient
