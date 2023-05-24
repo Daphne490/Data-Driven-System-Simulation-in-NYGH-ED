@@ -126,27 +126,40 @@ def compute_nis_features(df):
 
     # Initialize system state 0: general NIS
     df['NIS Upon Arrival'] = 0
+    df['Prev NIS Upon Arrival'] = 0
 
     # Initialize system state 1: NIS by patient type
     pt_features, nis_by_patient_type = [], ()
+    prev_nis_pt_features, prev_nis_by_patient_type = [], ()
     for _, pt in enumerate(unique_patient_types):
         df['NIS Upon Arrival Patient_{}'.format(pt)] = 0
         pt_features.append('NIS Upon Arrival Patient_{}'.format(pt))
         nis_by_patient_type += (0,)
+        df['Prev NIS Upon Arrival Patient_{}'.format(pt)] = 0
+        prev_nis_pt_features.append('Prev NIS Upon Arrival Patient_{}'.format(pt))
+        prev_nis_by_patient_type += (0,)
 
     # Initialize system state 2: NIS by zone
     zone_features, nis_by_zone = [], ()
+    prev_nis_zone_features, prev_nis_by_zone = [], ()
     for _, zone in enumerate(unique_zones):
         df['NIS Upon Arrival Zone_{}'.format(zone)] = 0
         zone_features.append('NIS Upon Arrival Zone_{}'.format(zone))
         nis_by_zone += (0,)
+        df['Prev NIS Upon Arrival Zone_{}'.format(zone)] = 0
+        prev_nis_zone_features.append('Prev NIS Upon Arrival Zone_{}'.format(zone))
+        prev_nis_by_zone += (0,)
 
     # Initialize system state 3: NIS by patient type x zone
     pt_zone_features, nis_by_pt_zone = [], ()
+    prev_nis_pt_zone_features, prev_nis_by_pt_zone = [], ()
     for _, pt_zone in enumerate(unique_patient_type_zones):
         df['NIS Upon Arrival Patient_{} Zone_{}'.format(pt_zone[0], pt_zone[1])] = 0
         pt_zone_features.append('NIS Upon Arrival Patient_{} Zone_{}'.format(pt_zone[0], pt_zone[1]))
         nis_by_pt_zone += (0,)
+        df['Prev NIS Upon Arrival Patient_{} Zone_{}'.format(pt_zone[0], pt_zone[1])] = 0
+        prev_nis_pt_zone_features.append('Prev NIS Upon Arrival Patient_{} Zone_{}'.format(pt_zone[0], pt_zone[1]))
+        prev_nis_by_pt_zone += (0,)
 
     arrival_times = df['patient_arrival_times'].tolist()
     departure_times = df['Left ED DateTime'].tolist()
@@ -161,15 +174,23 @@ def compute_nis_features(df):
 
     curr_nis = 0
     curr_nis_by_pt, curr_nis_by_zone, curr_nis_by_pt_zone = nis_by_patient_type, nis_by_zone, nis_by_pt_zone
+    prev_nis = 0
+    prev_nis_by_pt, prev_nis_by_zone, prev_nis_by_pt_zone = prev_nis_by_patient_type, prev_nis_by_zone, prev_nis_by_pt_zone
 
     while len(event_calendar) != 0:
         timestamp, id_, event_type = hq.heappop(event_calendar)
         if event_type == 'a':
             # System State = 0
+            df.at[id_, 'Prev NIS Upon Arrival'] = prev_nis # assign prev customer's NIS upon arrival to current customer
             curr_nis += 1
             df.at[id_, 'NIS Upon Arrival'] = curr_nis
+            prev_nis = curr_nis # update  the "temporary NIS counters for prev customer"
 
             # System State = 1
+            df.at[id_, 'Prev NIS Upon Arrival Patient_T123 Admitted'] = prev_nis_by_pt[0]
+            df.at[id_, 'Prev NIS Upon Arrival Patient_T123 Not Admitted'] = prev_nis_by_pt[1]
+            df.at[id_, 'Prev NIS Upon Arrival Patient_T45'] = prev_nis_by_pt[2]
+
             if df['Triage Category'][id_] == 'T123 Admitted':
                 curr_nis_by_pt = (curr_nis_by_pt[0] + 1, curr_nis_by_pt[1], curr_nis_by_pt[2])
             elif df['Triage Category'][id_] == 'T123 Not Admitted':
@@ -179,8 +200,12 @@ def compute_nis_features(df):
             df.at[id_, 'NIS Upon Arrival Patient_T123 Admitted'] = curr_nis_by_pt[0]
             df.at[id_, 'NIS Upon Arrival Patient_T123 Not Admitted'] = curr_nis_by_pt[1]
             df.at[id_, 'NIS Upon Arrival Patient_T45'] = curr_nis_by_pt[2]
+            prev_nis_by_pt = curr_nis_by_pt
 
             # System State = 2
+            for i, zone in enumerate(unique_zones):
+                df.at[id_, 'NIS Upon Arrival Zone_{}'.format(zone)] = prev_nis_by_zone[i]
+
             temp_nis_by_zone = ()
             for i, zone in enumerate(unique_zones):
                 if df['Initial Zone'][id_] == zone:
@@ -189,9 +214,13 @@ def compute_nis_features(df):
                 else:
                     temp_nis_by_zone = temp_nis_by_zone + (curr_nis_by_zone[i],)
                     df.at[id_, 'NIS Upon Arrival Zone_{}'.format(zone)] = curr_nis_by_zone[i]
-            curr_nis_by_zone = temp_nis_by_zone
+            curr_nis_by_zone, prev_nis_by_zone = temp_nis_by_zone, temp_nis_by_zone
 
             # System State = 3
+            for j, pt_zone in enumerate(unique_patient_type_zones):
+                df.at[id_, 'Prev NIS Upon Arrival Patient_{} Zone_{}'.format(pt_zone[0], pt_zone[1])] = \
+                prev_nis_by_pt_zone[j]
+
             temp_nis_by_pt_zone = ()
             for j, pt_zone in enumerate(unique_patient_type_zones):
                 if (df['Triage Category'][id_], df['Initial Zone'][id_]) == pt_zone:
@@ -202,7 +231,7 @@ def compute_nis_features(df):
                     temp_nis_by_pt_zone = temp_nis_by_pt_zone + (curr_nis_by_pt_zone[j],)
                     df.at[id_, 'NIS Upon Arrival Patient_{} Zone_{}'.format(pt_zone[0], pt_zone[1])] = \
                     curr_nis_by_pt_zone[j]
-            curr_nis_by_pt_zone = temp_nis_by_pt_zone
+            curr_nis_by_pt_zone, prev_nis_by_pt_zone = temp_nis_by_pt_zone, temp_nis_by_pt_zone
 
         elif event_type == 'd':
             # System State = 0
@@ -336,3 +365,8 @@ def main_preprocess_data(filename, columns, years, cleaned_data_filename, write_
         df.to_excel(save_path, engine='xlsxwriter')
 
     return df
+
+# if __name__ == "__main__":
+#     filename = "NYGH_1_8_v1_original.csv"
+#     columns = ["Age (Registration)", "Gender Code", "Arrival Mode", "Ambulance Arrival DateTime", "Triage DateTime", "Triage Code", "Left ED DateTime", "Initial Zone", "Consult Service Description (1st)", "Diagnosis Code Description", "CACS Cell Description", "Discharge Disposition Description"]
+#     main_preprocess_data(filename, columns, years=[2016,2017,2018], cleaned_data_filename="cleaned_data_all_final_202208.xlsx", write_data=True)
