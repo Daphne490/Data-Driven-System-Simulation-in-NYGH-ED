@@ -1,0 +1,27 @@
+START (year, month) of training AND testing data, separated by comma:
+2018, 5
+END (year, month) of training AND testing data, separated by comma:
+2018, 8
+START (year, month) of TRAINING data:
+2018, 5
+END (year, month) of TRAINING data:
+2018, 7
+START (year, month) of TESTING data:
+2018, 8
+END (year, month) of TESTING data:
+2018, 8
+System states for modelling:
+0, 1, 2, 3
+CATEGORICAL column names from cleaned data (x features used to train LOS model):
+Age Category, Gender Code, Triage Category, Ambulance, Consult, Initial Zone, arrival_hour, arrival_day_of_week, arrival_week_number, arrival_month, holiday_CAN_ON
+CONTINUOUS column names from cleaned data (x features and y feature to train the LOS model):
+arrival_num_week_since_start, sojourn_time(minutes)
+Interventions (% LOS cutdown for consult patients):
+0.2, 1.0
+log of LOS? 1 for yes, 0 for no:
+1
+simulate the system? 1 for yes, 0 for no:
+1
+
+
+
