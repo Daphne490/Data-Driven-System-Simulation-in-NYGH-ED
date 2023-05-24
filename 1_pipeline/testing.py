@@ -273,7 +273,7 @@ def step1_preprocess_data_inputs():
     return step1_inputs
 
 def step2_3_inputs():
-    f = open("trial.txt", "r")
+    f = open("inputs.txt", "r")
     
     #STEP 2 Inputs
     print("\nSTEP 2: Train and Test DataFrame Split Inputs...")
