@@ -52,23 +52,28 @@ def main():
             '''
 
             # step4_inputs = step4_transform_results_data_clustered_bar_inputs()
-
-    # If user doesn't want to pre-process the data (e.g., cleaned data already readily available)
     else:
+        #precategorized_flag = bool(int(input("Do you have a categorized dataframe (.pkl) file? 1 for yes, 0 for no --> ")))
+        precategorized_flag = 1
+        # If user doesn't want to pre-process the data (e.g., cleaned data already readily available)
         # If user wants to use cleaned data to build LOS models and simulate
         if los_modeling_flag:
-            # Ask user for the file in which the cleaned data is saved in
-            done1 = False
-            while not done1:
-                #step1_inputs = input("\nEnter the filename of your CLEANED data in EXCEL format, for example: cleaned_data_all_final.xlsx --> ")
-                step1_inputs = "cleaned_data_all_final_202208.xlsx"
-                print("====================================================================================================")
-                print("Filename for cleaned data is: {}".format(step1_inputs))
-                print("====================================================================================================")
-                #done1 = bool(int(input("Is the above parameter correct? 1 for yes, 0 for no (If no, will reset and re-enter the information) --> ")))
-                done1 = 1
-            # Ask user for inputs for steps 2, 3, and 4.
-            # Currently, no input is needed to perform step 4 (this step is performed automatically)
+            if preprocessing_flag:
+                step1_inputs = "categorized_data_202208_-_cut.pkl"
+            else:
+                # Ask user for the file in which the cleaned data is saved in
+                done1 = False
+                while not done1:
+                    #step1_inputs = input("\nEnter the filename of your CLEANED data in EXCEL format, for example: cleaned_data_all_final.xlsx --> ")
+                    step1_inputs = "cleaned_data_all_final_202208_-_cut.xlsx"
+                    print("====================================================================================================")
+                    print("Filename for cleaned data is: {}".format(step1_inputs))
+                    print("====================================================================================================")
+                    #done1 = bool(int(input("Is the above parameter correct? 1 for yes, 0 for no (If no, will reset and re-enter the information) --> ")))
+                    done1 = 1
+                # Ask user for inputs for steps 2, 3, and 4.
+                # Currently, no input is needed to perform step 4 (this step is performed automatically)
+            
             step2_inputs, step3_inputs = step2_3_inputs()
             '''
             step2_inputs = step2_df_train_test_split_inputs()
@@ -76,8 +81,8 @@ def main():
             '''
             
             # step4_inputs = step4_transform_results_data_clustered_bar_inputs()
-
-    print('\n')
+    
+    #print('\n')
     '''
     If user wants to construct relative frequency histograms and Q-Q plots, as well as perform K-S tests
     Note: this can be run independently if simulation was previously performed and results were saved with appropriate 
@@ -88,7 +93,7 @@ def main():
         step5_inputs = step5_relative_freq_histograms_and_qqplots_inputs()
 
     # After obtaining the user inputs for all steps, execute all the steps
-    execute_all_steps(step1_inputs, step2_inputs, step3_inputs, step5_inputs, preprocessing_flag, los_modeling_flag, plotting_flag)
+    execute_all_steps(step1_inputs, step2_inputs, step3_inputs, step5_inputs, preprocessing_flag, los_modeling_flag, plotting_flag, precategorized_flag)
 
     return 'Done!'
 
@@ -106,12 +111,15 @@ def execute_steps_234(df, step2_inputs, step3_inputs):
     start_year_month, end_year_month, train_start, train_end, test_start, test_end = step2_inputs
     df = select_df_year_month(df, start_year_month, end_year_month)
     df = add_num_wks_since_start_feature(df)
+    # print(df.iloc[:5, :4])
 
     df_train = select_df_year_month(df, train_start, train_end)
     df_train.drop(columns=['arrival_year'], inplace=True)
+    # print(df_train.iloc[:5, :4])
 
     df_test = select_df_year_month(df, test_start, test_end)
     df_test.drop(columns=['arrival_year'], inplace=True)
+    # print(df_test.iloc[:5, :4])
 
     # STEP 3: End-to-end simulation
     print("\n\nEXECUTING STEP 3...")
@@ -133,7 +141,7 @@ def execute_steps_234(df, step2_inputs, step3_inputs):
     transformed_results_filename = main_transform_simulation_results(filename=results_filename, nruns=nRuns, sys_state_list=sys_state_list)
 
 
-def execute_all_steps(step1_inputs, step2_inputs, step3_inputs, step5_inputs, preprocessing_flag, los_modeling_flag, plotting_flag):
+def execute_all_steps(step1_inputs, step2_inputs, step3_inputs, step5_inputs, preprocessing_flag, los_modeling_flag, plotting_flag, precategorized_flag):
     """
     This function takes in all user inputs and executes steps 1 to 5 of the pipeline:
         Step 1. Reads in data
@@ -156,13 +164,23 @@ def execute_all_steps(step1_inputs, step2_inputs, step3_inputs, step5_inputs, pr
             # STEP 1: Read in cleaned / pre - processed data
             print("\n\nEXECUTING STEP 1...")
             print("Reading in data...")
-            df = pd.read_excel(os.path.join(os.getcwd(), step1_inputs), engine='openpyxl', header=0)
-            columns = df.columns
-            check_cols_list = ['Age Category', 'Initial Zone', 'arrival_hour', 'arrival_day_of_week', 'arrival_week_number', 'arrival_month']
-            for col in check_cols_list:
-                if col in columns: df[col] = df[col].astype("category")
-                else: continue
 
+            if precategorized_flag:
+                df = pd.read_pickle("./categorized_data_202208_-_cut.pkl")
+            else:
+                df = pd.read_excel(os.path.join(os.getcwd(), step1_inputs), engine='openpyxl', header=0)
+                columns = df.columns
+                check_cols_list = ['Age Category', 'Initial Zone', 'arrival_hour', 'arrival_day_of_week', 'arrival_week_number', 'arrival_month']
+                for col in check_cols_list:
+                    if col in columns:  
+                        #print(df[col].head(5))
+                        df[col] = df[col].astype("category")
+                        #print(df[col].head(5))
+                    else: 
+                        continue 
+            
+            
+            #print("Finished cols 166")
             # STEPS 2, 3, and 4
             execute_steps_234(df, step2_inputs, step3_inputs)
 
