@@ -48,9 +48,11 @@ def read_results_single_sys_state(filename, sheetname, z_val, nruns):
     df = pd.read_excel(filename, sheet_name=sheetname, engine='openpyxl', index_col=0)
 
     # Sort the DataFrame by cut down %, from smallest to largest
-    df.sort_values(by=['Cut Down by (%)'], inplace=True)
+    df.sort_values(by=['Cut Down by val (<= 1 -> %, > 1 -> Time)'], inplace=True)
     df = df.reset_index(drop=True)
 
+    print("df:")
+    print(df)
     mean = convert_row_str_to_nparray(df, 'Mean [T123A, T123NA, T45]')
     stderr = None
     if sheetname != 'Naive':
@@ -58,7 +60,7 @@ def read_results_single_sys_state(filename, sheetname, z_val, nruns):
         stderr = stdev * z_val / np.sqrt(nruns).round(2)
     median = convert_row_str_to_nparray(df, 'Median [T123A, T123NA, T45]')
     percentile90 = convert_row_str_to_nparray(df, '90th Percentile [T123A, T123NA, T45]')
-    cutdown = df['Cut Down by (%)'].values
+    cutdown = df['Cut Down by val (<= 1 -> %, > 1 -> Time)'].values
 
     return mean, stderr, median, percentile90, cutdown
 
@@ -82,6 +84,9 @@ def save_to_df_by_patient_type(data, column_names, index_names, df_names):
     df_T123A = pd.DataFrame(columns=column_names)
     df_T123NA = pd.DataFrame(columns=column_names)
     df_T45 = pd.DataFrame(columns=column_names)
+
+    print("Inputs:")
+    print(data)
 
     for i, table in enumerate(data):
         df_T123A.loc[i] = table[0]
@@ -136,6 +141,7 @@ def main_transform_simulation_results(filename, nruns, sys_state_list):
     means_list, stderrs_list, medians_list, percentile90_list = [], [], [], []
     sheetname = 'Naive'
     mean, _, median, percentile90, cutdown = read_results_single_sys_state(filename, sheetname, z_val, nruns)
+    print("first mean:", mean)
     means_list.append(mean)
     medians_list.append(median)
     percentile90_list.append(percentile90)
@@ -149,9 +155,12 @@ def main_transform_simulation_results(filename, nruns, sys_state_list):
         percentile90_list.append(percentile90)
 
     df_names_suffix = ['mean', 'stderr', 'median', '90P']
-    column_names = ['Cut Down Consult LOS by {}%'.format(c) for c in cutdown]
+    column_names = ['Cut Down Consult LOS by {}'.format(c) for c in cutdown]
     dfs_by_patient_type_list = []
     all_lists = [means_list, stderrs_list, medians_list, percentile90_list]
+    
+    # print("\n\n\n\n\n")
+    # print(all_lists)
     index_names_list = [idx_names_w_naive, idx_names_wo_naive, idx_names_w_naive, idx_names_w_naive]
 
     for i, suf in enumerate(df_names_suffix):
@@ -181,7 +190,6 @@ def main_transform_simulation_results(filename, nruns, sys_state_list):
             worksheet.write_string(count, 0, df.name)
             df.to_excel(writer, sheet_name=ws_name, startrow=count + 1, startcol=0)
             count += 8
-    writer.save()
+    writer.close()
 
     return transformed_results_filename
-

@@ -198,6 +198,7 @@ def get_x_and_y_train_test_split_los_model(df, df_train, df_test, categorical_co
     # Obtain dummy variables for categorical variables
     df_los_train = pd.get_dummies(data=df_los_train, drop_first=True)
     df_los_test = pd.get_dummies(data=df_los_test, drop_first=True)
+    # print(df_los_train.columns)
 
     # Obtain the list of column dummy names for features in the model (except for Initial Zone)
     los_x_features = conts_cols
@@ -229,6 +230,27 @@ def get_x_and_y_train_test_split_los_model(df, df_train, df_test, categorical_co
 
     print('Done: Getting x and y features with dummy variables for LOS model for {}...'.format(triage_category))
     return los_x_train, los_x_test, los_y_train, los_y_test, los_x_train_features, x_test_zone_dropped_dummy
+
+def get_los_model(x_train, y_train, x_train_features, feature_importance_flag=False):
+    
+    model_los_RF = RandomForestRegressor(min_samples_leaf=30, max_depth=None, n_estimators=100, random_state=0)
+    model_los_RF.fit(x_train.values, y_train)
+
+    if feature_importance_flag:
+        # Get numerical feature importances
+        importances = list(model_los_RF.feature_importances_)
+        # List of tuples with variable and importance
+        feature_importances = [(feature, round(importance, 2)) for feature, importance in
+                               zip(x_train_features, importances)]
+        # Sort the feature importances by most important first
+        feature_importances = sorted(feature_importances, key=lambda x: x[1], reverse=True)
+        # Print out the feature and importances
+        # print(group)
+        [print('Variable: {:30} Importance: {}'.format(*pair)) for pair in feature_importances]
+
+    
+    return model_los_RF
+    
 
 
 def build_los_model(df, df_train, df_test, categorical_cols, conts_cols, triage_category, system_state=0, log_LOS=True, feature_importance_flag=False):
@@ -507,7 +529,10 @@ def simulate_single_scenario(system_state, cutdown, nRuns, initial_event_calenda
                 los = sample_from_RF_regressor(los_model, sample, los_errors, log_LOS_flag)  # LOS sampling
 
                 if sample['Consult_Yes'] == 1:  # Intervention for consult patients
-                    los = los * cutdown
+                    if (cutdown <= 1.0):
+                        los = los * cutdown
+                    else:
+                        los = max(los*0.5, los-cutdown)
                     if r == 0:
                         n_consult += 1
 
@@ -625,13 +650,17 @@ def main_simulate(sys_state, interventions, nRuns, initial_event_calendar, triag
     df_results = pd.DataFrame(
         columns=['System State', 'nPatients [T123A, T123NA, T45]', 'nConsultPatients [T123A, T123NA, T45]',
                  'percentConsult [T123A, T123NA, T45]',
-                 'nRuns', 'Cut Down by (%)', 'RMSE [T123A, T123NA, T45]', 'Mean [T123A, T123NA, T45]',
+                 'nRuns', 'Cut Down by val (<= 1 -> %, > 1 -> Time)', 'RMSE [T123A, T123NA, T45]', 'Mean [T123A, T123NA, T45]',
                  'Median [T123A, T123NA, T45]',
                  'Stdev [T123A, T123NA, T45]', 'CI on Mean [T123A, T123NA, T45]',
                  '90th Percentile [T123A, T123NA, T45]', 'Time to Run (seconds)'])
 
     for i, cutdown in enumerate(interventions):
-        print("Consult Patients shorten by {} Percent, System State = {}, Total Runs = {}...".format((1 - cutdown) * 100, sys_state, nRuns))
+        if (cutdown <= 1.0):
+            print("Consult Patients shorten by {} Percent, System State = {}, Total Runs = {}...".format((1 - cutdown) * 100, sys_state, nRuns))
+        else:
+            print("Consult Patients shorten by {} Minutes, System State = {}, Total Runs = {}...".format(cutdown, sys_state, nRuns))
+        
         start1 = time.time()
 
         # Run simulation for n runs (aka simulation replications) for a single scenario. Arrivals from testing data is used
@@ -647,7 +676,7 @@ def main_simulate(sys_state, interventions, nRuns, initial_event_calendar, triag
         # Store simulated LOS data
         if cutdown == 1.0:  # No intervention
             print('Calculating Simulated LOS...')
-            los_tr_nruns = np.array(los_tr_nruns)
+            los_tr_nruns = np.array(los_tr_nruns, dtype=object)
             T123A_simulated_los, T123NA_simulated_los, T45_simulated_los = los_tr_nruns[:, 0], los_tr_nruns[:,
                                                                                                1], los_tr_nruns[:, 2]
             T123A_temp_list, T123NA_temp_list, T45_temp_list = [], [], []
@@ -674,11 +703,16 @@ def main_simulate(sys_state, interventions, nRuns, initial_event_calendar, triag
 
         end1 = time.time()
         time_to_run1 = round((end1 - start1), 3)
-        print("Total time to run simulation for this cutdown percentage ({} runs): {} seconds".format(nRuns,
+        print("Total time to run simulation for this cutdown percentage/minute ({} runs): {} seconds".format(nRuns,
                                                                                                       time_to_run1))
 
         # Save the simulation results for the single scenario
-        df_results.loc[i] = sys_state, nPatients, nConsultPatients, percentConsult, nRuns, (1 - cutdown) * 100, rmse, mean, median, stdev, CI_mean, P90, time_to_run1
+        if cutdown <= 1.0:
+            # print("Percent intervention")
+            df_results.loc[i] = sys_state, nPatients, nConsultPatients, percentConsult, nRuns, cutdown, rmse, mean, median, stdev, CI_mean, P90, time_to_run1
+        else:
+            # print("Minute intervention")
+            df_results.loc[i] = sys_state, nPatients, nConsultPatients, percentConsult, nRuns, cutdown, rmse, mean, median, stdev, CI_mean, P90, time_to_run1
 
     return df_results
 
@@ -800,7 +834,10 @@ def naive_calculations_single_cutdown(df_list, cutdown):
         los = []
         for j in range(len(df_t)):
             if df_t['Consult'][j] == "Yes":
-                los.append(df_t['sojourn_time(minutes)'][j] * cutdown)
+                if cutdown <= 1:
+                    los.append(df_t['sojourn_time(minutes)'][j] * cutdown)
+                else:
+                    los.append(max(0.5 * df_t['sojourn_time(minutes)'][j], df_t['sojourn_time(minutes)'][j] - cutdown))
             else:
                 los.append(df_t['sojourn_time(minutes)'][j])
         los_list.append(los)
@@ -846,19 +883,21 @@ def main_naive_calculations(df_test, interventions):
     df_naive_results = pd.DataFrame(
         columns=['nPatients [T123A, T123NA, T45]', 'nConsultPatients [T123A, T123NA, T45]',
                  'percentConsult [T123A, T123NA, T45]',
-                 'Cut Down by (%)', 'Mean [T123A, T123NA, T45]', 'Median [T123A, T123NA, T45]',
+                 'Cut Down by val (<= 1 -> %, > 1 -> Time)', 'Mean [T123A, T123NA, T45]', 'Median [T123A, T123NA, T45]',
                  'Stdev [T123A, T123NA, T45]', '90th Percentile [T123A, T123NA, T45]'])
 
     for i, cutdown in enumerate(interventions):
-        print("Consult Patients shorten by {} Percent".format((1 - cutdown) * 100))
+        if cutdown <= 1:
+            print("Consult Patients shorten by {} Percent".format((1 - cutdown) * 100))
+        else:
+            print("Consult Patients shorten by {} Minutes". format(cutdown))
         mean, median, stdev, P90 = naive_calculations_single_cutdown(df_list, cutdown)
-        df_naive_results.loc[i] = nPatients, nConsultPatients, percentConsult, (
-                1 - cutdown) * 100, mean, median, stdev, P90
+        df_naive_results.loc[i] = nPatients, nConsultPatients, percentConsult, cutdown, mean, median, stdev, P90
 
     return df_naive_results
 
 
-def main_model_simulation_performance(df, df_train, df_test, sys_state_list, categorical_columns, conts_columns, interventions, log_LOS_flag=True, simulate_flag=True, nRuns=30, performance_measures_flag=True):
+def main_model_simulation_performance(df, df_train, df_test, sys_state_list, categorical_columns, conts_columns, interventions, min_interventions, log_LOS_flag=True, simulate_flag=True, nRuns=30, performance_measures_flag=True):
     """
     This function is the main LOS model building, simulation, and performance measures calculation function that
     takes in the cleaned data, a list of column features and a list of system states, a list of interventions,
@@ -901,10 +940,17 @@ def main_model_simulation_performance(df, df_train, df_test, sys_state_list, cat
 
     for s, sys_state in enumerate(sys_state_list):
         # Build separate LOS models for each patient type
+        # categorical_columns_copy, conts_columns_copy = categorical_columns.copy(), conts_columns.copy()
+        # los_x_train_T123A, los_x_test_T123A, los_y_train_T123A, los_y_test_T123A, model_los_RF_T123A, x_test_zone_dummy = build_los_model(
+        #     df=df, df_train=df_train, df_test=df_test, categorical_cols=categorical_columns_copy, conts_cols=conts_columns_copy,
+        #     triage_category='T123 Admitted', system_state=sys_state, log_LOS=log_LOS_flag, feature_importance_flag=False)
+
         categorical_columns_copy, conts_columns_copy = categorical_columns.copy(), conts_columns.copy()
-        los_x_train_T123A, los_x_test_T123A, los_y_train_T123A, los_y_test_T123A, model_los_RF_T123A, x_test_zone_dummy = build_los_model(
-            df=df, df_train=df_train, df_test=df_test, categorical_cols=categorical_columns_copy, conts_cols=conts_columns_copy,
-            triage_category='T123 Admitted', system_state=sys_state, log_LOS=log_LOS_flag, feature_importance_flag=False)
+        print('Building LOS model for {}...'.format('T123 Admitted'))
+        los_x_train_T123A, los_x_test_T123A, los_y_train_T123A, los_y_test_T123A, los_x_train_features, x_test_zone_dropped_dummy = get_x_and_y_train_test_split_los_model(
+        df, df_train, df_test, categorical_columns_copy, conts_columns_copy, "T123 Admitted", sys_state, log_LOS_flag)
+        model_los_RF_T123A = get_los_model(los_x_train_T123A, los_y_train_T123A, los_x_train_features, False)
+        print('Done: Building LOS model for {}...'.format('T123 Admitted'))
 
         categorical_columns_copy, conts_columns_copy = categorical_columns.copy(), conts_columns.copy()
         los_x_train_T123NA, los_x_test_T123NA, los_y_train_T123NA, los_y_test_T123NA, model_los_RF_T123NA, x_test_zone_dummy = build_los_model(
@@ -958,7 +1004,8 @@ def main_model_simulation_performance(df, df_train, df_test, sys_state_list, cat
             hq.heapify(initial_event_calendar)
 
             # Initialize the DataFrame to store simulation results
-            df_results = main_simulate(sys_state=sys_state, interventions=interventions, nRuns=nRuns,
+            
+            df_results = main_simulate(sys_state=sys_state, interventions=interventions + min_interventions, nRuns=nRuns,
                                        initial_event_calendar=initial_event_calendar,
                                        triage_categories=all_patient_types, los_x_tests=los_x_tests,
                                        los_train_errs=los_train_errors, los_models=los_models,
@@ -968,7 +1015,7 @@ def main_model_simulation_performance(df, df_train, df_test, sys_state_list, cat
             df_results_list.append(df_results)
 
     # Computes naive (baseline) results
-    df_naive_results = main_naive_calculations(df_test, interventions)
+    df_naive_results = main_naive_calculations(df_test, interventions + min_interventions)
 
     # Saving results from all system states for all intervention levels (naive baseline and simulation)
     print('Saving results...')

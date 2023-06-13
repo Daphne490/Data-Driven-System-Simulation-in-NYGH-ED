@@ -53,27 +53,22 @@ def main():
 
             # step4_inputs = step4_transform_results_data_clustered_bar_inputs()
     else:
-        #precategorized_flag = bool(int(input("Do you have a categorized dataframe (.pkl) file? 1 for yes, 0 for no --> ")))
-        precategorized_flag = 1
         # If user doesn't want to pre-process the data (e.g., cleaned data already readily available)
         # If user wants to use cleaned data to build LOS models and simulate
         if los_modeling_flag:
-            if preprocessing_flag:
-                step1_inputs = "categorized_data_202208_-_cut.pkl"
-            else:
-                # Ask user for the file in which the cleaned data is saved in
-                done1 = False
-                while not done1:
-                    #step1_inputs = input("\nEnter the filename of your CLEANED data in EXCEL format, for example: cleaned_data_all_final.xlsx --> ")
-                    step1_inputs = "cleaned_data_all_final_202208_-_cut.xlsx"
-                    print("====================================================================================================")
-                    print("Filename for cleaned data is: {}".format(step1_inputs))
-                    print("====================================================================================================")
-                    #done1 = bool(int(input("Is the above parameter correct? 1 for yes, 0 for no (If no, will reset and re-enter the information) --> ")))
-                    done1 = 1
-                # Ask user for inputs for steps 2, 3, and 4.
-                # Currently, no input is needed to perform step 4 (this step is performed automatically)
-            
+            # Ask user for the file in which the cleaned data is saved in
+            done1 = False
+            while not done1:
+                #step1_inputs = input("\nEnter the filename of your CLEANED data in EXCEL format, for example: cleaned_data_all_final.xlsx --> ")
+                step1_inputs = "cleaned_data_all_final_202208_-_cut.xlsx"
+                print("====================================================================================================")
+                print("Filename for cleaned data is: {}".format(step1_inputs))
+                print("====================================================================================================")
+                #done1 = bool(int(input("Is the above parameter correct? 1 for yes, 0 for no (If no, will reset and re-enter the information) --> ")))
+                done1 = 1
+            # Ask user for inputs for steps 2, 3, and 4.
+            # Currently, no input is needed to perform step 4 (this step is performed automatically)
+        
             step2_inputs, step3_inputs = step2_3_inputs()
             '''
             step2_inputs = step2_df_train_test_split_inputs()
@@ -93,7 +88,7 @@ def main():
         step5_inputs = step5_relative_freq_histograms_and_qqplots_inputs()
 
     # After obtaining the user inputs for all steps, execute all the steps
-    execute_all_steps(step1_inputs, step2_inputs, step3_inputs, step5_inputs, preprocessing_flag, los_modeling_flag, plotting_flag, precategorized_flag)
+    execute_all_steps(step1_inputs, step2_inputs, step3_inputs, step5_inputs, preprocessing_flag, los_modeling_flag, plotting_flag)
 
     return 'Done!'
 
@@ -123,15 +118,18 @@ def execute_steps_234(df, step2_inputs, step3_inputs):
 
     # STEP 3: End-to-end simulation
     print("\n\nEXECUTING STEP 3...")
-    sys_state_list, categorical_cols, conts_cols, interventions, log_LOS_flag, simulate_flag, nRuns, performance_measures_flag = step3_inputs
+    sys_state_list, categorical_cols, conts_cols, interventions, min_interventions, log_LOS_flag, simulate_flag, nRuns, performance_measures_flag = step3_inputs
     df_naive_results, df_results_list, results_filename = main_model_simulation_performance(df, df_train, df_test, sys_state_list,
-                                                        categorical_cols, conts_cols, interventions, log_LOS_flag,
+                                                        categorical_cols, conts_cols, interventions, min_interventions, log_LOS_flag,
                                                         simulate_flag, nRuns, performance_measures_flag)
 
+    print("Naive results columns:")
     print(list(df_naive_results.columns))
+    print("Naive results head:")
     print(np.array(df_naive_results.head()))
 
     for df in df_results_list:
+        print("Df columns returned:")
         print(list(df.columns))
         print(np.array(df.head()))
 
@@ -141,7 +139,7 @@ def execute_steps_234(df, step2_inputs, step3_inputs):
     transformed_results_filename = main_transform_simulation_results(filename=results_filename, nruns=nRuns, sys_state_list=sys_state_list)
 
 
-def execute_all_steps(step1_inputs, step2_inputs, step3_inputs, step5_inputs, preprocessing_flag, los_modeling_flag, plotting_flag, precategorized_flag):
+def execute_all_steps(step1_inputs, step2_inputs, step3_inputs, step5_inputs, preprocessing_flag, los_modeling_flag, plotting_flag):
     """
     This function takes in all user inputs and executes steps 1 to 5 of the pipeline:
         Step 1. Reads in data
@@ -165,19 +163,14 @@ def execute_all_steps(step1_inputs, step2_inputs, step3_inputs, step5_inputs, pr
             print("\n\nEXECUTING STEP 1...")
             print("Reading in data...")
 
-            if precategorized_flag:
-                df = pd.read_pickle("./categorized_data_202208_-_cut.pkl")
-            else:
-                df = pd.read_excel(os.path.join(os.getcwd(), step1_inputs), engine='openpyxl', header=0)
-                columns = df.columns
-                check_cols_list = ['Age Category', 'Initial Zone', 'arrival_hour', 'arrival_day_of_week', 'arrival_week_number', 'arrival_month']
-                for col in check_cols_list:
-                    if col in columns:  
-                        #print(df[col].head(5))
-                        df[col] = df[col].astype("category")
-                        #print(df[col].head(5))
-                    else: 
-                        continue 
+            df = pd.read_excel(os.path.join(os.getcwd(), step1_inputs), engine='openpyxl', header=0)
+            columns = df.columns
+            check_cols_list = ['Age Category', 'Initial Zone', 'arrival_hour', 'arrival_day_of_week', 'arrival_week_number', 'arrival_month']
+            for col in check_cols_list:
+                if col in columns:  
+                    df[col] = df[col].astype("category")
+                else: 
+                    continue 
             
             
             #print("Finished cols 166")
@@ -333,6 +326,16 @@ def step2_3_inputs():
     interventions = interventions.replace(', ', ',')
     interventions = [round(float(i),1) for i in interventions.split(',')]
     step3_inputs.append(interventions)
+    
+    
+    f.readline()
+    min_interventions = f.readline()
+    min_interventions = min_interventions.replace(', ', ',')
+    min_interventions = [round(float(i),1) for i in min_interventions.split(',')]
+    if min_interventions[0] == 0.0:
+        step3_inputs.append([])
+    else:
+        step3_inputs.append(min_interventions)
 
     f.readline()
     log_LOS = f.readline().strip()
@@ -361,7 +364,8 @@ def step2_3_inputs():
     print("System states selected: ", sys_state_list)
     print("Categorical variables columns: ", step3_inputs[1])
     print("Continuous variables columns: ", step3_inputs[2])
-    print("Inverventions selected: ", interventions)
+    print("Percent Inverventions selected: ", step3_inputs[3])
+    print("Minute Inverventions selected: ", step3_inputs[4])
     print("log(LOS) flag is: {}, simulate flag is: {}, performance measures flag is: {}, number of simulation runs will be performed is: {}".format(log_LOS_flag, simulate_flag, performance_measures_flag, nRuns))
     print("====================================================================================================")
 
@@ -495,6 +499,7 @@ def step3_E2E_simulation_inputs():
         print("System states selected: ", sys_state_list)
         print("Categorical variables columns: ", categorical_cols)
         print("Continuous variables columns: ", conts_cols)
+        print("Inverventions selected: ", interventions)
         print("Inverventions selected: ", interventions)
         print("log(LOS) flag is: {}, simulate flag is: {}, performance measures flag is: {}, number of simulation runs will be performed is: {}".format(log_LOS_flag, simulate_flag, performance_measures_flag, nRuns))
         print("====================================================================================================")
