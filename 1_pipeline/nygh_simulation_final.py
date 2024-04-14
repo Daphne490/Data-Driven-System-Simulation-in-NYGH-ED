@@ -174,6 +174,7 @@ def get_x_and_y_train_test_split_los_model(df, df_train, df_test, categorical_co
     print('Getting x and y features with dummy variables for LOS model for {}...'.format(triage_category))
     _, nis_columns = get_nis_features(df, system_state)  # select NIS features based on system state
     columns = categorical_cols + conts_cols + nis_columns
+    print("columns:", columns)
     df_los_train, df_los_test = df_train[columns], df_test[columns]
 
     # Select only the rows for patients in the specific triage category
@@ -524,6 +525,8 @@ def simulate_single_scenario(system_state, cutdown, nRuns, initial_event_calenda
 
                 # Sample LOS for the arriving patient, apply intervention to if it is a consult patient
                 sample = df_los_test.iloc[idx_]
+                # print("df_los_test:", df_los_test)
+                # print("sample:", sample)
                 idx_ += 1
 
                 los = sample_from_RF_regressor(los_model, sample, los_errors, log_LOS_flag)  # LOS sampling
@@ -940,17 +943,17 @@ def main_model_simulation_performance(df, df_train, df_test, sys_state_list, cat
 
     for s, sys_state in enumerate(sys_state_list):
         # Build separate LOS models for each patient type
-        # categorical_columns_copy, conts_columns_copy = categorical_columns.copy(), conts_columns.copy()
-        # los_x_train_T123A, los_x_test_T123A, los_y_train_T123A, los_y_test_T123A, model_los_RF_T123A, x_test_zone_dummy = build_los_model(
-        #     df=df, df_train=df_train, df_test=df_test, categorical_cols=categorical_columns_copy, conts_cols=conts_columns_copy,
-        #     triage_category='T123 Admitted', system_state=sys_state, log_LOS=log_LOS_flag, feature_importance_flag=False)
-
         categorical_columns_copy, conts_columns_copy = categorical_columns.copy(), conts_columns.copy()
-        print('Building LOS model for {}...'.format('T123 Admitted'))
-        los_x_train_T123A, los_x_test_T123A, los_y_train_T123A, los_y_test_T123A, los_x_train_features, x_test_zone_dropped_dummy = get_x_and_y_train_test_split_los_model(
-        df, df_train, df_test, categorical_columns_copy, conts_columns_copy, "T123 Admitted", sys_state, log_LOS_flag)
-        model_los_RF_T123A = get_los_model(los_x_train_T123A, los_y_train_T123A, los_x_train_features, False)
-        print('Done: Building LOS model for {}...'.format('T123 Admitted'))
+        los_x_train_T123A, los_x_test_T123A, los_y_train_T123A, los_y_test_T123A, model_los_RF_T123A, x_test_zone_dummy = build_los_model(
+            df=df, df_train=df_train, df_test=df_test, categorical_cols=categorical_columns_copy, conts_cols=conts_columns_copy,
+            triage_category='T123 Admitted', system_state=sys_state, log_LOS=log_LOS_flag, feature_importance_flag=False)
+
+        # categorical_columns_copy, conts_columns_copy = categorical_columns.copy(), conts_columns.copy()
+        # print('Building LOS model for {}...'.format('T123 Admitted'))
+        # los_x_train_T123A, los_x_test_T123A, los_y_train_T123A, los_y_test_T123A, los_x_train_features, x_test_zone_dropped_dummy = get_x_and_y_train_test_split_los_model(
+        # df, df_train, df_test, categorical_columns_copy, conts_columns_copy, "T123 Admitted", sys_state, log_LOS_flag)
+        # model_los_RF_T123A = get_los_model(los_x_train_T123A, los_y_train_T123A, los_x_train_features, False)
+        # print('Done: Building LOS model for {}...'.format('T123 Admitted'))
 
         categorical_columns_copy, conts_columns_copy = categorical_columns.copy(), conts_columns.copy()
         los_x_train_T123NA, los_x_test_T123NA, los_y_train_T123NA, los_y_test_T123NA, model_los_RF_T123NA, x_test_zone_dummy = build_los_model(
@@ -1011,7 +1014,7 @@ def main_model_simulation_performance(df, df_train, df_test, sys_state_list, cat
                                        los_train_errs=los_train_errors, los_models=los_models,
                                        x_test_zone_dropped_dummy=x_test_zone_dummy,
                                        unique_sys_states_categories=unique_sys_states_categories,
-                                       performance_measures_flag=performance_measures_flag)
+                                       performance_measures_flag=performance_measures_flag, log_LOS_flag=log_LOS_flag)
             df_results_list.append(df_results)
 
     # Computes naive (baseline) results

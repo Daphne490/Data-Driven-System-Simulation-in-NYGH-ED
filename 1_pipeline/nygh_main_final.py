@@ -1,5 +1,5 @@
 from nygh_pre_process_final import *
-from nygh_simulation_final import *
+from nygh_simulation_final_old import *
 from nygh_histogram_qqplots_kstest_final import *
 from nygh_transform_results_final import *
 
@@ -10,6 +10,11 @@ from nygh_transform_results_final import *
 ## Supervised By: Prof. Arik Senderovich, Prof. Dmitry Krass, Prof. Opher Baron
 ## Email: sijianancy.li@mail.utoronto.ca
 ##################################################################################################################
+
+'''
+Hardcoded inputs: 
+preprocessing_flag, los_modeling_flag, plotting_flag, step1_inputs, nRuns, performance_measures, step5_inputs
+'''
 
 
 def main():
@@ -27,42 +32,53 @@ def main():
     step1_inputs, step2_inputs, step3_inputs, step4_inputs, step5_inputs = None, None, None, None, None
 
     # Asks users for steps to perform
-    preprocessing_flag = bool(int(input("Would you like to pre-process your data? 1 for yes, 0 for no --> ")))
-    los_modeling_flag = bool(
-        int(input("Would you like to build LOS models (and simulate the system)? 1 for yes, 0 for no --> ")))
-    plotting_flag = bool(
-        int(input("Would you like to create rel_freq histograms and qq-plots? 1 for yes, 0 for no --> ")))
-
+    #preprocessing_flag = bool(int(input("Would you like to pre-process your data? 1 for yes, 0 for no --> ")))
+    preprocessing_flag = 0
+    #los_modeling_flag = bool(int(input("Would you like to build LOS models (and simulate the system)? 1 for yes, 0 for no --> ")))
+    los_modeling_flag = 1
+    #plotting_flag = bool(int(input("Would you like to create rel_freq histograms and qq-plots? 1 for yes, 0 for no --> ")))
+    plotting_flag = 1
+    
     # If user would like to pre-process the data
     if preprocessing_flag:
         step1_inputs = step1_preprocess_data_inputs() # Ask user for inputs for step 1
         # If user would like to build LOS models and perform simulation , ask user for for inputs for steps 2, 3, and 4.
         # Currently, no input is needed to perform step 4 (this step is performed automatically)
         if los_modeling_flag:
+            step2_inputs, step3_inputs = step2_3_inputs()
+            '''
             step2_inputs = step2_df_train_test_split_inputs()
             step3_inputs = step3_E2E_simulation_inputs()
-            # step4_inputs = step4_transform_results_data_clustered_bar_inputs()
+            '''
 
-    # If user doesn't want to pre-process the data (e.g., cleaned data already readily available)
+            # step4_inputs = step4_transform_results_data_clustered_bar_inputs()
     else:
+        # If user doesn't want to pre-process the data (e.g., cleaned data already readily available)
         # If user wants to use cleaned data to build LOS models and simulate
         if los_modeling_flag:
+            
             # Ask user for the file in which the cleaned data is saved in
             done1 = False
             while not done1:
-                step1_inputs = input("\nEnter the filename of your CLEANED data in EXCEL format, for example: cleaned_data_all_final.xlsx --> ")
+                #step1_inputs = input("\nEnter the filename of your CLEANED data in EXCEL format, for example: cleaned_data_all_final.xlsx --> ")
+                step1_inputs = "cleaned_data_all_final_202208_-_cut.xlsx"
                 print("====================================================================================================")
                 print("Filename for cleaned data is: {}".format(step1_inputs))
                 print("====================================================================================================")
-                done1 = bool(int(input(
-                    "Is the above parameter correct? 1 for yes, 0 for no (If no, will reset and re-enter the information) --> ")))
+                #done1 = bool(int(input("Is the above parameter correct? 1 for yes, 0 for no (If no, will reset and re-enter the information) --> ")))
+                done1 = 1
             # Ask user for inputs for steps 2, 3, and 4.
             # Currently, no input is needed to perform step 4 (this step is performed automatically)
+            
+            step2_inputs, step3_inputs = step2_3_inputs()
+            '''
             step2_inputs = step2_df_train_test_split_inputs()
             step3_inputs = step3_E2E_simulation_inputs()
+            '''
+            
             # step4_inputs = step4_transform_results_data_clustered_bar_inputs()
-
-    print('\n')
+    
+    #print('\n')
     '''
     If user wants to construct relative frequency histograms and Q-Q plots, as well as perform K-S tests
     Note: this can be run independently if simulation was previously performed and results were saved with appropriate 
@@ -91,16 +107,23 @@ def execute_steps_234(df, step2_inputs, step3_inputs):
     start_year_month, end_year_month, train_start, train_end, test_start, test_end = step2_inputs
     df = select_df_year_month(df, start_year_month, end_year_month)
     df = add_num_wks_since_start_feature(df)
+    # print(df.iloc[:5, :4])
 
     df_train = select_df_year_month(df, train_start, train_end)
     df_train.drop(columns=['arrival_year'], inplace=True)
+    # print(df_train.iloc[:5, :4])
 
     df_test = select_df_year_month(df, test_start, test_end)
     df_test.drop(columns=['arrival_year'], inplace=True)
+    # print(df_test.iloc[:5, :4])
 
     # STEP 3: End-to-end simulation
     print("\n\nEXECUTING STEP 3...")
     sys_state_list, categorical_cols, conts_cols, interventions, log_LOS_flag, simulate_flag, nRuns, performance_measures_flag = step3_inputs
+    print(df.head())
+    print(df_train.head())
+    print(df_test.head())
+    print(step3_inputs)
     df_naive_results, df_results_list, results_filename = main_model_simulation_performance(df, df_train, df_test, sys_state_list,
                                                         categorical_cols, conts_cols, interventions, log_LOS_flag,
                                                         simulate_flag, nRuns, performance_measures_flag)
@@ -141,13 +164,19 @@ def execute_all_steps(step1_inputs, step2_inputs, step3_inputs, step5_inputs, pr
             # STEP 1: Read in cleaned / pre - processed data
             print("\n\nEXECUTING STEP 1...")
             print("Reading in data...")
+
+            
             df = pd.read_excel(os.path.join(os.getcwd(), step1_inputs), engine='openpyxl', header=0)
             columns = df.columns
             check_cols_list = ['Age Category', 'Initial Zone', 'arrival_hour', 'arrival_day_of_week', 'arrival_week_number', 'arrival_month']
             for col in check_cols_list:
-                if col in columns: df[col] = df[col].astype("category")
-                else: continue
-
+                if col in columns:  
+                    df[col] = df[col].astype("category")
+                else: 
+                    continue 
+            
+            
+            #print("Finished cols 166")
             # STEPS 2, 3, and 4
             execute_steps_234(df, step2_inputs, step3_inputs)
 
@@ -160,19 +189,23 @@ def execute_all_steps(step1_inputs, step2_inputs, step3_inputs, step5_inputs, pr
     return 'Done execute all steps'
 
 
-def user_input_columns():
+def user_input_columns(val = None, testing_cols = None):
     """
     This function asks users to enter information regarding the column names to filter for in a DataFrame
     """
 
     done, columns = False, []
     while not done:
-        nCols = input("How many column names you'd like to add? 1 for one column, 2 for more than one columns --> ")
+        if val is None:
+            nCols = input("How many column names you'd like to add? 1 for one column, 2 for more than one columns --> ")
+        else:
+            nCols = val
         if int(nCols) == 1:
             col = input("Enter column name --> ")
             columns.append(col)
         elif int(nCols) == 2:
-            cols = input("Enter column names separated by comma, for example: Age (Registration), Gender Code --> ")
+            #cols = input("Enter column names separated by comma, for example: Age (Registration), Gender Code --> ")
+            cols = testing_cols
             cols = cols.replace(', ', ',')
             cols = cols.split(',')
             columns.extend(cols)
@@ -182,7 +215,8 @@ def user_input_columns():
 
         valid_answer = False
         print("Current columns selected: ", columns)
-        answer = input("Do you need to add more columns? Enter 0 for no, 1 for yes, 2 for reset --> ")
+        #answer = input("Do you need to add more columns? Enter 0 for no, 1 for yes, 2 for reset --> ")
+        answer = 0
         while not valid_answer:
             if int(answer) == 0:
                 done = True
@@ -221,9 +255,8 @@ def step1_preprocess_data_inputs():
         print('Provide column names from raw dataset...')
         print('For example: Age (Registration), Gender Code, Arrival Mode, Ambulance Arrival DateTime, Triage DateTime, Triage Code, Left ED DateTime, Initial Zone, Consult Service Description (1st), Diagnosis Code Description, CACS Cell Description, Discharge Disposition Description')
         columns = user_input_columns()
-        '''
-        Age (Registration), Gender Code, Arrival Mode, Ambulance Arrival DateTime, Triage DateTime, Triage Code, Left ED DateTime, Initial Zone, Consult Service Description (1st), Diagnosis Code Description, CACS Cell Description, Discharge Disposition Description
-        '''
+        #Age (Registration), Gender Code, Arrival Mode, Ambulance Arrival DateTime, Triage DateTime, Triage Code, Left ED DateTime, Initial Zone, Consult Service Description (1st), Diagnosis Code Description, CACS Cell Description, Discharge Disposition Description
+        
 
         # step 1.3: ask user for the years in which the user like to analyze for the "holidays" feature
         years = input("\nEnter years to clean/pre-process (separated by comma), for example: 2016, 2017, 2018 --> ")
@@ -246,12 +279,106 @@ def step1_preprocess_data_inputs():
         print("Years to analyze: ", years)
         print("Write data is: {}, and the filename to save the cleaned / preprocessed data is: {}".format(write_data, cleaned_data_filename))
         print("====================================================================================================")
-        done = bool(int(input(
-            "Are the above parameters correct? 1 for yes, 0 for no (If no, will reset and re-enter the information) --> ")))
+        done = bool(int(input("Are the above parameters correct? 1 for yes, 0 for no (If no, will reset and re-enter the information) --> ")))
+        #done = 1
 
     step1_inputs = [filename, columns, years, cleaned_data_filename, write_data]
 
     return step1_inputs
+
+def step2_3_inputs():
+    f = open("inputs.txt", "r")
+    
+    #STEP 2 Inputs
+    print("\nSTEP 2: Train and Test DataFrame Split Inputs...")
+    step2_inputs = []
+    for i in range(6):
+        f.readline()
+        s = f.readline().strip()
+        s = s.replace(', ', ',')
+        s = [int(i) for i in s.split(',')]
+        s = s[0], s[1]
+        step2_inputs.append(s)
+
+    print("====================================================================================================")
+    print("Range of all data (training and testing) -- start: {}; end: {}".format(step2_inputs[0], step2_inputs[1]))
+    print("Range of training data -- start: {}; end: {}".format(step2_inputs[2], step2_inputs[3]))
+    print("Range of testing data -- start: {}; end: {}".format(step2_inputs[4], step2_inputs[5]))
+    print("====================================================================================================")
+    
+    #STEP 3 Inputs
+    print("\n\nSTEP 3: End-to-end Simulation Inputs...")
+    step3_inputs = []
+    f.readline()
+    sys_state_list = f.readline().strip()
+    sys_state_list = sys_state_list.replace(', ', ',')
+    sys_state_list = [int(i) for i in sys_state_list.split(',')]
+    step3_inputs.append(sys_state_list)
+
+    for i in range(2):
+        columns = []
+        f.readline()
+        cols = f.readline().strip()
+        cols = cols.replace(', ', ',')
+        cols = cols.split(',')
+        columns.extend(cols)
+        step3_inputs.append(columns)
+
+    f.readline()
+    interventions = f.readline()
+    interventions = interventions.replace(', ', ',')
+    interventions = [round(float(i),1) for i in interventions.split(',')]
+    step3_inputs.append(interventions)
+    
+    
+    f.readline()
+    f.readline()
+    '''
+    min_interventions = f.readline()
+    min_interventions = min_interventions.replace(', ', ',')
+    min_interventions = [round(float(i),1) for i in min_interventions.split(',')]
+    if min_interventions[0] == 0.0:
+        step3_inputs.append([])
+    else:
+        step3_inputs.append(min_interventions)
+    '''
+
+    f.readline()
+    log_LOS = f.readline().strip()
+    log_LOS_flag = bool(int(log_LOS))
+    step3_inputs.append(log_LOS_flag)
+    f.readline()
+    simulate = f.readline().strip()
+    simulate_flag = bool(int(simulate))
+    step3_inputs.append(simulate_flag)
+
+    if simulate_flag:
+        #nRuns = input("How many replications / runs would you like to simulate? For example, 30 --> ")
+        nRuns = 2
+        nRuns = int(nRuns)
+        #performance_measures = input("Do you want to compute the simulation performance measures? 1 for yes, 0 for no --> ")
+        performance_measures = 1
+        performance_measures_flag = bool(int(performance_measures))
+    else:
+        nRuns = 0
+        performance_measures_flag = False
+
+    step3_inputs.append(nRuns)
+    step3_inputs.append(performance_measures_flag)
+    
+    print("====================================================================================================")
+    print("System states selected: ", sys_state_list)
+    print("Categorical variables columns: ", step3_inputs[1])
+    print("Continuous variables columns: ", step3_inputs[2])
+    print("Percent Inverventions selected: ", step3_inputs[3])
+    # print("Minute Inverventions selected: ", step3_inputs[4])
+    print("log(LOS) flag is: {}, simulate flag is: {}, performance measures flag is: {}, number of simulation runs will be performed is: {}".format(log_LOS_flag, simulate_flag, performance_measures_flag, nRuns))
+    print("====================================================================================================")
+
+    f.close
+
+    return step2_inputs, step3_inputs
+
 
 
 def step2_df_train_test_split_inputs():
@@ -273,28 +400,31 @@ def step2_df_train_test_split_inputs():
     done = False
 
     while not done:
+        '''
         start_year_month = input("Enter the START (year, month) of training AND testing data, separated by comma, e.g., for May 2018, enter: 2018, 5 --> ")
         end_year_month = input("Enter the END (year, month) of training AND testing data, separated by comma, e.g., for August 2018, enter: 2018, 8 --> ")
-        # start_year_month, end_year_month = (2018, 5), (2018, 8)
+        start_year_month, end_year_month = (2018, 5), (2018, 8)
 
         train_start = input("Enter the START (year, month) of TRAINING data, separated by comma, e.g., for May 2018, enter: 2018, 5 --> ")
         train_end = input("Enter the END (year, month) of TRAINING data, separated by comma, e.g., for July 2018, enter: 2018, 7 --> ")
-        # train_start, train_end = (2018, 5), (2018, 7)
+        train_start, train_end = (2018, 5), (2018, 7)
 
         test_start = input("Enter the START (year, month) of TESTING data, separated by comma, e.g., for August 2018, enter: 2018, 8 --> ")
         test_end = input("Enter the END (year, month) of TESTING data, separated by comma, e.g., for August 2018, enter: 2018, 8 --> ")
-        # test_start, test_end = (2018, 8), (2018, 8)
-
+        test_start, test_end = (2018, 8), (2018, 8)
+        
         print("====================================================================================================")
         print("Range of all data (training and testing) -- start: {}; end: {}".format(start_year_month, end_year_month))
         print("Range of training data -- start: {}; end: {}".format(train_start, train_end))
         print("Range of testing data -- start: {}; end: {}".format(test_start, test_end))
         print("====================================================================================================")
-        done = bool(int(input(
-            "Are the above parameters correct? 1 for yes, 0 for no (If no, will reset and re-enter the information) --> ")))
-
-    step2_inputs_temp = [start_year_month, end_year_month, train_start, train_end, test_start, test_end]
-
+        done = bool(int(input("Are the above parameters correct? 1 for yes, 0 for no (If no, will reset and re-enter the information) --> ")))
+        '''
+        #done = 1
+        
+    
+    #step2_inputs_temp = [start_year_month, end_year_month, train_start, train_end, test_start, test_end]
+    step2_inputs_temp = ["2018, 5", "2018, 8", "2018, 5", "2018, 7", "2018, 8", "2018, 8"]
     step2_inputs = []
     for s in step2_inputs_temp:
         s = s.replace(', ', ',')
@@ -323,16 +453,20 @@ def step3_E2E_simulation_inputs():
     done = False
     while not done:
         print('System state 0: overall NIS, 1: NIS by Patient Type, 2: NIS by Zone, 3: NIS by Patient Type x Zone')
-        sys_state_list = input("Enter system state(s) you'd like to build LOS models and separate them by comma, for example: 0, 1 --> ")
+        #sys_state_list = input("Enter system state(s) you'd like to build LOS models and separate them by comma, for example: 0, 1 --> ")
+        sys_state_list = "0,1,2,3"
         sys_state_list = sys_state_list.replace(', ', ',')
         sys_state_list = [int(i) for i in sys_state_list.split(',')]
+        
 
         print('Provide CATEGORICAL column names from cleaned data (x features used to train LOS model)...')
         print('For example: Age Category, Gender Code, Triage Category, Ambulance, Consult, Initial Zone, arrival_hour, arrival_day_of_week, arrival_week_number, arrival_month, holiday_CAN_ON')
-        categorical_cols = user_input_columns()
+        #categorical_cols = user_input_columns()
+        categorical_cols = user_input_columns(2, "Age Category, Gender Code, Triage Category, Ambulance, Consult, Initial Zone, arrival_hour, arrival_day_of_week, arrival_week_number, arrival_month, holiday_CAN_ON")
         print('\nProvide CONTINUOUS column names (except for system state features) from cleaned data (x features and y feature to train the LOS model)...')
         print('For example: arrival_num_week_since_start, sojourn_time(minutes)')
-        conts_cols = user_input_columns()
+        #conts_cols = user_input_columns()
+        conts_cols = user_input_columns(2, "arrival_num_week_since_start, sojourn_time(minutes)")
 
         '''
         categorical_cols = Age Category, Gender Code, Triage Category, Ambulance, Consult, Initial Zone, arrival_hour, arrival_day_of_week, arrival_week_number, arrival_month, holiday_CAN_ON
@@ -342,21 +476,26 @@ def step3_E2E_simulation_inputs():
         print('\nInterventions (% LOS cutdown for consult patients)...')
         print('Entering 1.0 means cut down by (1-1.0)*100% = 0% --> no intervention is applied')
         print('Entering 0.6 means cut down by (1-0.6)*100% = 40% --> intervention is applied, LOS of consult patient will be reduced by 40%')
-        interventions = input("Enter interventions separated by comma, for example: 0.5, 1.0 --> ")
+        #interventions = input("Enter interventions separated by comma, for example: 0.5, 1.0 --> ")
+        interventions = "0.2, 0.5, 0.8"
         interventions = interventions.replace(', ', ',')
         interventions = [round(float(i),1) for i in interventions.split(',')]
 
-        log_LOS = input("\nDo you want to take the log of LOS? 1 for yes, 0 for no --> ")
+        #log_LOS = input("\nDo you want to take the log of LOS? 1 for yes, 0 for no --> ")
+        log_LOS = 1
         log_LOS_flag = bool(int(log_LOS))
 
-        simulate = input("Do you want to simulate the system? 1 for yes, 0 for no --> ")
+        #simulate = input("Do you want to simulate the system? 1 for yes, 0 for no --> ")
+        simulate = 1
         simulate_flag = bool(int(simulate))
 
         if simulate_flag:
-            nRuns = input("How many replications / runs would you like to simulate? For example, 30 --> ")
+            #nRuns = input("How many replications / runs would you like to simulate? For example, 30 --> ")
+            nRuns = 2
             nRuns = int(nRuns)
 
-            performance_measures = input("Do you want to compute the simulation performance measures? 1 for yes, 0 for no --> ")
+            #performance_measures = input("Do you want to compute the simulation performance measures? 1 for yes, 0 for no --> ")
+            performance_measures = 1
             performance_measures_flag = bool(int(performance_measures))
         else:
             nRuns = 0
@@ -367,9 +506,11 @@ def step3_E2E_simulation_inputs():
         print("Categorical variables columns: ", categorical_cols)
         print("Continuous variables columns: ", conts_cols)
         print("Inverventions selected: ", interventions)
+        print("Inverventions selected: ", interventions)
         print("log(LOS) flag is: {}, simulate flag is: {}, performance measures flag is: {}, number of simulation runs will be performed is: {}".format(log_LOS_flag, simulate_flag, performance_measures_flag, nRuns))
         print("====================================================================================================")
         done = bool(int(input("Are the above parameters correct? 1 for yes, 0 for no (If no, will reset and re-enter the information) --> ")))
+        #done = 1
 
     step3_inputs = [sys_state_list, categorical_cols, conts_cols, interventions, log_LOS_flag, simulate_flag, nRuns, performance_measures_flag]
 
@@ -413,16 +554,16 @@ def step5_relative_freq_histograms_and_qqplots_inputs():
     step5_inputs = None
     done = False
     while not done:
-        step5_inputs = input(
-            "Enter system state(s) you'd like to create rel_freq histograms and qq-plots for, separated them by comma, for example: 0, 1 --> ")
+        #step5_inputs = input(
+        #    "Enter system state(s) you'd like to create rel_freq histograms and qq-plots for, separated them by comma, for example: 0, 1 --> ")
+        step5_inputs = "0, 1, 2, 3"
         step5_inputs = step5_inputs.replace(', ', ',')
         step5_inputs = [int(i) for i in step5_inputs.split(',')]
         print("====================================================================================================")
         print("System states to create plots for are: {}".format(step5_inputs))
         print("====================================================================================================")
-        done = bool(int(input(
-            "Is the above parameter correct? 1 for yes, 0 for no (If no, will reset and re-enter the information) --> ")))
-
+        #done = bool(int(input("Is the above parameter correct? 1 for yes, 0 for no (If no, will reset and re-enter the information) --> ")))
+        done = 1
     return step5_inputs
 
 

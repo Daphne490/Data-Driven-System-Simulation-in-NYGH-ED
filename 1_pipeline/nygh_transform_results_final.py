@@ -51,8 +51,6 @@ def read_results_single_sys_state(filename, sheetname, z_val, nruns):
     df.sort_values(by=['Cut Down by val (<= 1 -> %, > 1 -> Time)'], inplace=True)
     df = df.reset_index(drop=True)
 
-    print("df:")
-    print(df)
     mean = convert_row_str_to_nparray(df, 'Mean [T123A, T123NA, T45]')
     stderr = None
     if sheetname != 'Naive':
@@ -85,8 +83,6 @@ def save_to_df_by_patient_type(data, column_names, index_names, df_names):
     df_T123NA = pd.DataFrame(columns=column_names)
     df_T45 = pd.DataFrame(columns=column_names)
 
-    print("Inputs:")
-    print(data)
 
     for i, table in enumerate(data):
         df_T123A.loc[i] = table[0]

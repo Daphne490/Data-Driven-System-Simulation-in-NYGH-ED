@@ -57,7 +57,7 @@ def check_float_and_convert_to_datetime(input_val):
     Converts a given string to DateTime format
     """
     if type(input_val) != float:
-        return datetime.strptime(input_val, "%Y-%m-%d %H:%M:%S")
+        return datetime.strptime(input_val, "%m/%d/%Y %H:%M")
 
 
 def max_arrival_time(ambulance, triage):
@@ -273,31 +273,8 @@ def convert_columns_to_category_type(df, categorical_columns):
         df[col] = df[col].astype("category")
     return df
 
-
-def main_preprocess_data(filename, columns, years, cleaned_data_filename, write_data):
-    """
-    This function is the main data pre-processing function that reads in the raw data,
-    cleans the raw data columns (sometimes call other functions in this script),
-    and if write_data is True, the cleaned DataFrame will be saved in Excel format.
-
-    @ params:
-        filename (str): name of the file in which the raw data is saved at
-        columns (list): list of column names (str) in the raw data to be pre-processed
-        years (list): list of years (int) to be pre-proceesed
-        cleaned_data_filename (str): the filename that will be used to save cleaned data if write_data is True
-        write_data (bool): True means will save cleaned data in Excel file, False means don't save
-
-    @ return:
-        df: the DataFrame after data pre-processing
-    """
-
-    print('Pre-Processing...')
-    filepath = os.path.join(os.getcwd(), filename)
-    df = pd.read_csv(filepath)
-    print("DataFrame columns shape and names (before pre-processing): ", df.shape, df.columns)
-    df = df[columns]
-    categorical_columns = []
-
+def clean_data(df, categorical_columns, columns):
+    
     # Categorize age into 4 age groups
     if 'Age (Registration)' in columns:
         df = df[df['Age (Registration)'].notna()]  # drop columns with null values
@@ -332,6 +309,36 @@ def main_preprocess_data(filename, columns, years, cleaned_data_filename, write_
         df['Initial Zone'].fillna(value='U', inplace=True)
         categorical_columns.append('Initial Zone')
 
+    return df, categorical_columns
+
+
+def main_preprocess_data(filename, columns, years, cleaned_data_filename, write_data):
+    """
+    This function is the main data pre-processing function that reads in the raw data,
+    cleans the raw data columns (sometimes call other functions in this script),
+    and if write_data is True, the cleaned DataFrame will be saved in Excel format.
+
+    @ params:
+        filename (str): name of the file in which the raw data is saved at
+        columns (list): list of column names (str) in the raw data to be pre-processed
+        years (list): list of years (int) to be pre-proceesed
+        cleaned_data_filename (str): the filename that will be used to save cleaned data if write_data is True
+        write_data (bool): True means will save cleaned data in Excel file, False means don't save
+
+    @ return:
+        df: the DataFrame after data pre-processing
+    """
+
+    print('Pre-Processing...')
+    filepath = os.path.join(os.getcwd(), filename)
+    df = pd.read_csv(filepath)
+    print("DataFrame columns shape and names (before pre-processing): ", df.shape, df.columns)
+    df = df[columns]
+    categorical_columns = []
+
+    df, categorical_columns = clean_data(df, categorical_columns, columns)
+
+
     # Categorize patients by triage code and by admission (T123 admitted, T123 not admitted, T45)
     df, categorical_columns = categorize_patients(df, categorical_columns)
 
@@ -344,9 +351,19 @@ def main_preprocess_data(filename, columns, years, cleaned_data_filename, write_
         lambda row: max_arrival_time(row['Ambulance Arrival DateTime'], row['Triage DateTime']), axis=1)
     # Add a new column "sojourn_times(minutes)" by calculating (left ED datetime - patient arrival times)
     df['sojourn_time(minutes)'] = df.apply(
-        lambda row: (row['Left ED DateTime'] - row['patient_arrival_times']).seconds // 60, axis=1)
+        lambda row: (row['Left ED DateTime'] - row['patient_arrival_times']).total_seconds() // 60, axis=1)
     # Select "sojourn_times(minutes)" that are larger than 0
     df = df[df['sojourn_time(minutes)'] > 0].reset_index()
+
+
+    first_arrival = df['patient_arrival_times'].iloc[0]
+    df['arrival'] = df.apply( lambda row: (row['patient_arrival_times'] - first_arrival).total_seconds() // 60, axis = 1)
+    df['arrival_shifted'] = df.arrival.shift(-1)
+    df['last_los_remaining'] = df.apply( lambda row: (row['sojourn_time(minutes)'] - row['arrival_shifted'] + row['arrival']), axis = 1)
+    df['last_los_remaining'] = df.last_los_remaining.shift(1)
+    df.loc[0, 'last_los_remaining'] = 0
+    df.pop('arrival')
+    df.pop('arrival_shifted')
 
     df = df.reset_index()
     df.drop(columns=['index'], inplace=True)
@@ -354,6 +371,7 @@ def main_preprocess_data(filename, columns, years, cleaned_data_filename, write_
     df, categorical_columns = add_arrival_columns(df, years, categorical_columns)
     df = compute_nis_features(df)
     df = convert_columns_to_category_type(df, categorical_columns)
+    categorical_columns.append("last_lost_remaining")
 
     print("Categorical columns: ", categorical_columns)
     print("DataFrame columns shape and names (after pre-processing): ", df.shape, df.columns)

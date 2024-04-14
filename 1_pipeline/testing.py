@@ -33,7 +33,7 @@ def main():
 
     # Asks users for steps to perform
     #preprocessing_flag = bool(int(input("Would you like to pre-process your data? 1 for yes, 0 for no --> ")))
-    preprocessing_flag = 0
+    preprocessing_flag = 1
     #los_modeling_flag = bool(int(input("Would you like to build LOS models (and simulate the system)? 1 for yes, 0 for no --> ")))
     los_modeling_flag = 1
     #plotting_flag = bool(int(input("Would you like to create rel_freq histograms and qq-plots? 1 for yes, 0 for no --> ")))
@@ -123,15 +123,6 @@ def execute_steps_234(df, step2_inputs, step3_inputs):
                                                         categorical_cols, conts_cols, interventions, min_interventions, log_LOS_flag,
                                                         simulate_flag, nRuns, performance_measures_flag)
 
-    print("Naive results columns:")
-    print(list(df_naive_results.columns))
-    print("Naive results head:")
-    print(np.array(df_naive_results.head()))
-
-    for df in df_results_list:
-        print("Df columns returned:")
-        print(list(df.columns))
-        print(np.array(df.head()))
 
     # STEP 4: Transform mean, median, 90th percentile results from simulation
     print("\n\nEXECUTING STEP 4...")
@@ -251,9 +242,9 @@ def step1_preprocess_data_inputs():
         # step 1.2: ask user to provide the names of the columns that would like to be included in the cleaned data
         print('Provide column names from raw dataset...')
         print('For example: Age (Registration), Gender Code, Arrival Mode, Ambulance Arrival DateTime, Triage DateTime, Triage Code, Left ED DateTime, Initial Zone, Consult Service Description (1st), Diagnosis Code Description, CACS Cell Description, Discharge Disposition Description')
-        columns = user_input_columns()
+        # columns = user_input_columns()
         #Age (Registration), Gender Code, Arrival Mode, Ambulance Arrival DateTime, Triage DateTime, Triage Code, Left ED DateTime, Initial Zone, Consult Service Description (1st), Diagnosis Code Description, CACS Cell Description, Discharge Disposition Description
-        
+        columns = ['Age (Registration)', 'Gender Code', 'Arrival Mode', 'Ambulance Arrival DateTime', 'Triage DateTime', 'Triage Code', 'Left ED DateTime', 'Initial Zone', 'Consult Service Description (1st)', 'Diagnosis Code Description', 'CACS Cell Description', 'Discharge Disposition Description']
 
         # step 1.3: ask user for the years in which the user like to analyze for the "holidays" feature
         years = input("\nEnter years to clean/pre-process (separated by comma), for example: 2016, 2017, 2018 --> ")
